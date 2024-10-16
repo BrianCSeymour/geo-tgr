@@ -1,0 +1,30 @@
+name: geotgr
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python=3.10
+  - numpy
+  - pandas
+  - scipy
+  - matplotlib
+  - multiprocess
+  - tqdm
+  - astropy
+  - ipykernel
+  - lal
+  - jax
+  - qnm
+  - spherical
+  - quaternionic
+  - gwpopulation
+  - pathos
+  # - nb_conda_kernels # I dont think needed
+  # - pycbc
+
+# pip install jimGW
+# pip install pycbc
+
+# conda env create -f geotgr.yml
+# conda env update --file geotgr.yml --prune
+# conda remove --name geotgr --all
