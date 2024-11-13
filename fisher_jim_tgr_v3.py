@@ -2,7 +2,7 @@ import jax.numpy as jnp
 import jax 
 from jax import grad, vmap
 import numpy as np
-from jimgw.waveform import RippleIMRPhenomD
+from jimgw.waveform import RippleIMRPhenomD, RippleIMRPhenomPv2
 from jimgw.detector import H1, L1, V1
 jax.config.update("jax_enable_x64", True)
 
@@ -11,7 +11,8 @@ import scipy.integrate as integ
 import scipy.linalg as sla
 import pycbc.conversions
 
-waveform = RippleIMRPhenomD(f_ref=20)
+from functools import partial
+
 
 import astropy.units as u
 from astropy import constants as const
@@ -31,40 +32,12 @@ def read_mag(freq, fileName):
     mag_out = jnp.exp(mag_func(jnp.log(freq)))
     return mag_out
 
+
 def innprod(hf1, hf2, psd, freqs):
-    # prod = 2. * integ.simps( (jnp.conj(hf1) * hf2 + hf1 * jnp.conj(hf2)) / psd , freqs)
     prod = 2. * jax.scipy.integrate.trapezoid( (jnp.conj(hf1) * hf2 + hf1 * jnp.conj(hf2)) / psd , freqs)
     return prod
 
-def fishslow(freqs, dh, par, idx_par, psd, log_flag):
 
-    n_pt = len(freqs)
-    n_dof = len(idx_par)
-
-    dh_arr = jnp.zeros([n_dof, n_pt], dtype=np.complex128)
-
-    for idx in idx_par:
-        dh_arr = dh_arr.at[idx_par[idx],:].set(dh[idx])
-        # dh_arr[idx_par[idx],:] = dh[idx]
-
-        if log_flag[idx]:
-            # dh_arr[idx_par[idx]] *= par[idx]
-            dh_arr = dh_arr.at[idx_par[idx],:].set(dh_arr[idx_par[idx]] * par[idx])
-            
-
-        gamma = jnp.zeros([n_dof, n_dof], dtype=np.float64)
-
-    for i in range(n_dof):
-        for j in range(i, n_dof):
-            # gamma[i, j] = jnp.real(innprod(dh_arr[i, :], dh_arr[j, :], psd, freqs))
-            gamma = gamma.at[i, j].set(np.real(innprod(dh_arr[i, :], dh_arr[j, :], psd, freqs)))
-
-    for i in range(n_dof):
-        for j in range(i):
-            # gamma[i, j] = jnp.conj(gamma[j, i])
-            gamma = gamma.at[i, j].set(jnp.conj(gamma[j, i]))
-
-    return gamma
 
 @jax.jit
 def fish(freqs, dh, par, idx_par, psd, log_flag):
@@ -102,79 +75,26 @@ def fish(freqs, dh, par, idx_par, psd, log_flag):
 
     return gamma
 
-def get_cov_param_rel(fish, idx_par):
-    cov = sla.inv(fish)
-    cov_param = {}
-    for i in idx_par:
-        cov_param[i] = jnp.sqrt(cov[idx_par[i], idx_par[i]])
+@jax.jit
+def bias_innerprod(freqs, dh, par, Dh, idx_par, psd, log_flag):
+    # Initialize a zero array for bias with the correct length
+    n_dof = len(idx_par)
+    bias = jnp.zeros(n_dof, dtype=jnp.float64)
     
-    return cov_param
+    # Loop through parameters in idx_par, avoiding the need for sorting
+    for param, index in idx_par.items():
+        res_value = jnp.real(innprod(dh[param], Dh, psd, freqs))
+        res_value = jax.lax.cond(
+            log_flag[param],
+            lambda x: x * par[param],
+            lambda x: x,
+            res_value
+        )
+        bias = bias.at[index].set(res_value)
+    
+    return bias
 
 # ------------ wavefrom derivs --------
-
-def get_h_H1_slow(x, f):
-    # not measuring spins nor gmst/epoch since these are tc
-    x['s1_x'] = jnp.array(0.); x['s1_y'] = jnp.array(0.); x['s1_z'] = jnp.array(0.)
-    x['s2_x'] = jnp.array(0.); x['s2_y'] = jnp.array(0.); x['s2_z'] = jnp.array(0.)
-    x['gmst'] = jnp.array(0.); x['epoch'] = jnp.array(0.)
-    
-    ff = jnp.array([f])
-    h_sky = waveform(ff, x)
-    align_time = jnp.exp(-1j*2*jnp.pi*ff*(x['epoch']+x['t_c']))
-    signal = H1.fd_response(ff, h_sky, x) * align_time
-    return signal[0]
-
-def get_h_L1_slow(x, f):
-    x['s1_x'] = jnp.array(0.); x['s1_y'] = jnp.array(0.); x['s1_z'] = jnp.array(0.)
-    x['s2_x'] = jnp.array(0.); x['s2_y'] = jnp.array(0.); x['s2_z'] = jnp.array(0.)
-    x['gmst'] = jnp.array(0.); x['epoch'] = jnp.array(0.)
-    
-    ff = jnp.array([f])
-    h_sky = waveform(ff, x)
-    align_time = jnp.exp(-1j*2*jnp.pi*ff*(x['epoch']+x['t_c']))
-    signal = L1.fd_response(ff, h_sky, x) * align_time
-    return signal[0]
-
-def get_h_V1_slow(x, f):
-    x['s1_x'] = jnp.array(0.); x['s1_y'] = jnp.array(0.); x['s1_z'] = jnp.array(0.)
-    x['s2_x'] = jnp.array(0.); x['s2_y'] = jnp.array(0.); x['s2_z'] = jnp.array(0.)
-    x['gmst'] = jnp.array(0.); x['epoch'] = jnp.array(0.)
-    
-    ff = jnp.array([f])
-    h_sky = waveform(ff, x)
-    align_time = jnp.exp(-1j*2*jnp.pi*ff*(x['epoch']+x['t_c']))
-    signal = V1.fd_response(ff, h_sky, x) * align_time
-    return signal[0]
-
-# @jax.jit
-def get_dh_H1(x,f):
-    ur = vmap(grad(lambda x,f : get_h_H1_slow(x,f).real), in_axes=(None, 0))(x,f)
-    ui = vmap(grad(lambda x,f : get_h_H1_slow(x,f).imag), in_axes=(None, 0))(x,f)
-    dh = {key: ur.get(key, 0) + 1j*ui.get(key, 0) for key in x}
-    return dh
-
-# @jax.jit
-def get_dh_L1(x,f):
-    ur = vmap(grad(lambda x,f : get_h_L1_slow(x,f).real), in_axes=(None, 0))(x,f)
-    ui = vmap(grad(lambda x,f : get_h_L1_slow(x,f).imag), in_axes=(None, 0))(x,f)
-    dh = {key: ur.get(key, 0) + 1j*ui.get(key, 0) for key in x}
-    return dh
-
-# @jax.jit
-def get_dh_V1(x,f):
-    ur = vmap(grad(lambda x,f : get_h_V1_slow(x,f).real), in_axes=(None, 0))(x,f)
-    ui = vmap(grad(lambda x,f : get_h_V1_slow(x,f).imag), in_axes=(None, 0))(x,f)
-    dh = {key: ur.get(key, 0) + 1j*ui.get(key, 0) for key in x}
-    return dh
-
-# get_h_H1 = jax.jit(vmap(lambda x,f : get_h_H1_slow(x,f), in_axes=(None, 0)))
-# get_h_L1 = jax.jit(vmap(lambda x,f : get_h_L1_slow(x,f), in_axes=(None, 0)))
-# get_h_V1 = jax.jit(vmap(lambda x,f : get_h_V1_slow(x,f), in_axes=(None, 0)))
-
-get_h_H1 = vmap(lambda x,f : get_h_H1_slow(x,f), in_axes=(None, 0))
-get_h_L1 = vmap(lambda x,f : get_h_L1_slow(x,f), in_axes=(None, 0))
-get_h_V1 = vmap(lambda x,f : get_h_V1_slow(x,f), in_axes=(None, 0))
-
 
 
 def get_FI(freqs, red_param, idx_par, psd, log_flag):
@@ -198,15 +118,7 @@ def get_snrs(freqs, red_param, psd):
 
     return snr_H1, snr_L1, snr_V1, (snr_H1**2 + snr_L1**2 + snr_V1**2)**(1/2)
 
-def compute_bias(dh, dh_nvnl, psd, freqs, idx_par):
-    res = { key : jnp.real(innprod(dh[key], dh_nvnl, psd, freqs)) for key in dh.keys()}
-    # bias = jnp.zeros(len(idx_par))
-    # for idx in idx_par:
-    #     bias[idx_par[idx]] = res[idx]
-    bias = [res[key] for key, index in sorted(idx_par.items(), key=lambda item: item[1])]
 
-    bias = jnp.real(jnp.array(bias))
-    return bias
 
 def get_FI_ppe(freqs, red_param, idx_par, psd, log_flag, k):
     dh_H1  = get_dh_H1(red_param, freqs)
@@ -230,6 +142,8 @@ def get_FI_ppe(freqs, red_param, idx_par, psd, log_flag, k):
 
 
     return fi_H1, fi_L1, fi_V1
+
+# ------------ dephasing terms --------
 
 def get_dpsi_ppe_inner(freqs, par, k):
 
@@ -294,3 +208,65 @@ def get_dpsi_ppe(freqs, par, k):
     # dpsi = dpsi.at[freqs>fend].set(get_dpsi_ppe_inner(fend, par, k)) 
     return dpsi
 
+
+# -------- class -----------
+
+class Fisher(object):
+    def __init__(self, fmin = 20, fmax = 1000, n_freq = 2000., waveform="IMRPhenomPv2", f_ref=20, fisher_parameters=None):
+
+        self.freqs = jnp.logspace(jnp.log10(fmin), jnp.log10(fmax), num = int(n_freq))
+        if waveform == "IMRPhenomD":
+            self.waveform = RippleIMRPhenomD(f_ref=f_ref)
+            self.paramdiffgr = ["M_c", "eta", "d_L", "ra", "dec", "iota", "psi", "t_c", "phase_c"]
+        elif waveform == "IMRPhenomPv2":
+            self.waveform = RippleIMRPhenomPv2(f_ref=f_ref)
+            self.paramdiffgr = ["M_c", "eta", "d_L", "ra", "dec", "iota", "psi", "t_c", "phase_c", 's1_z', 's1_x']
+        self.paramgr = ["M_c", "eta", "d_L", "ra", "dec", "iota", "psi", "t_c", "phase_c", 's1_x', 's1_y', 's1_z', 's2_x', 's2_y', 's2_z','gmst', 'epoch']
+
+        xvals = [ 3.00000000e+01,  2.46559096e-01,  3.90000000e+02,
+        1.69254929e+00,  9.39189162e-01,  2.35481238e+00,
+       -1.20559143e+00,  0.00000000e+00,  0.00000000e+00,
+        1.00000000e-06,  1.00000000e-06,  1.00000000e-06,
+        1.00000000e-06,  1.00000000e-06,  1.00000000e-06,
+        0.00000000e+00,  0.00000000e+00]
+        xkeys = ['M_c','eta','d_L','ra','dec','iota','psi','t_c','phase_c','s1_x','s1_y','s1_z','s2_x','s2_y','s2_z','gmst','epoch']
+        xtest = dict(zip(xkeys, xvals))
+        self.jitted_h1 = jax.jit(lambda x: self.get_h_slow(x, H1))
+        self.jitted_h2 = jax.jit(lambda x: self.get_h_slow(x, L1))
+        self.jitted_h3 = jax.jit(lambda x: self.get_h_slow(x, V1))
+
+        idx_diff = tuple(i for i, key in enumerate(self.paramgr) if key in self.paramdiffgr)
+        self.jitted_dh1 = jax.jit(jax.jacfwd(lambda *args: self._get_h_args(*args, det=H1), argnums = idx_diff))
+        self.jitted_dh2 = jax.jit(jax.jacfwd(lambda *args: self._get_h_args(*args, det=L1), argnums = idx_diff))
+        self.jitted_dh3 = jax.jit(jax.jacfwd(lambda *args: self._get_h_args(*args, det=V1), argnums = idx_diff))
+
+        self.det1 = H1
+        self.det2 = L1
+        self.det3 = V1
+
+    def get_h_slow(self, x, det):
+        ff = self.freqs
+        h_sky = self.waveform(ff, x)
+        align_time = jnp.exp(-1j * 2 * jnp.pi * ff * (x['epoch'] + x['t_c']))
+        signal = det.fd_response(ff, h_sky, x) * align_time
+        return signal
+
+    def _get_h_args(self, *args, det):
+        keys = self.paramgr
+        y = dict(zip(keys, args)) 
+        return self.get_h_slow(y, det)
+
+
+    def get_h_gr(self, x):
+        return {'H1': self.jitted_h1(x), 'L1': self.jitted_h2(x), 'V1': self.jitted_h3(x)}
+    
+
+
+    def get_dh_gr(self, x):
+        xvalues = list(x.values())
+        dh = {
+            'H1': dict(zip(self.paramdiffgr, self.jitted_dh1(*xvalues))),
+            'L1': dict(zip(self.paramdiffgr, self.jitted_dh2(*xvalues))),
+            'V1': dict(zip(self.paramdiffgr, self.jitted_dh3(*xvalues)))
+        }
+        return dh
