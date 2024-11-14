@@ -19,6 +19,11 @@ from astropy import constants as const
 
 Ms = (u.Msun * const.G / const.c**3 ).si.value
 
+import matplotlib as mpl
+from matplotlib.legend_handler import HandlerLine2D, HandlerPatch
+
+
+
 # ------------ Fisher Stuff --------
 
 def read_mag(freq, fileName):
@@ -36,8 +41,6 @@ def read_mag(freq, fileName):
 def innprod(hf1, hf2, psd, freqs):
     prod = 2. * jax.scipy.integrate.trapezoid( (jnp.conj(hf1) * hf2 + hf1 * jnp.conj(hf2)) / psd , freqs)
     return prod
-
-
 
 @jax.jit
 def fish(freqs, dh, par, idx_par, psd, log_flag):
@@ -203,8 +206,8 @@ def get_dpsi_ppe(freqs, par, k):
 
     dpsi = get_dpsi_ppe_inner(freqs, par, k)
     # dpsi[freqs>fend] = get_dpsi_ppe_inner(fend, par) # numpy version
-
-    dpsi = jnp.where(freqs>fend, get_dpsi_ppe_inner(fend, par, k), dpsi) # jax version
+    dpsiend = get_dpsi_ppe_inner(fend, par, k)
+    dpsi = jnp.where(freqs>fend, get_dpsi_ppe_inner(fend, par, k), dpsi)- dpsiend # jax version
     # dpsi = dpsi.at[freqs>fend].set(get_dpsi_ppe_inner(fend, par, k)) 
     return dpsi
 
@@ -212,15 +215,17 @@ def get_dpsi_ppe(freqs, par, k):
 # -------- class -----------
 
 class Fisher(object):
-    def __init__(self, fmin = 20, fmax = 1000, n_freq = 2000., waveform="IMRPhenomPv2", f_ref=20, fisher_parameters=None):
+    def __init__(self, fmin = 20, fmax = 1000, n_freq = 2000., waveform="IMRPhenomPv2", f_ref=20, fisher_parameters=None, psdid="O3"):
 
         self.freqs = jnp.logspace(jnp.log10(fmin), jnp.log10(fmax), num = int(n_freq))
         if waveform == "IMRPhenomD":
             self.waveform = RippleIMRPhenomD(f_ref=f_ref)
             self.paramdiffgr = ["M_c", "eta", "d_L", "ra", "dec", "iota", "psi", "t_c", "phase_c"]
+            self.paramdiffgr_latex = [r"$M_c$", r"$\eta$", r"$d_L$", r"$\text{ra}$", r"$\text{dec}$", r"$\iota$", r"$\psi$", r"$t_c$", r"$\phi_c$"]
         elif waveform == "IMRPhenomPv2":
             self.waveform = RippleIMRPhenomPv2(f_ref=f_ref)
             self.paramdiffgr = ["M_c", "eta", "d_L", "ra", "dec", "iota", "psi", "t_c", "phase_c", 's1_z', 's1_x']
+            self.paramdiffgr_latex = [r"$M_c$", r"$\eta$", r"$d_L$", r"$\text{ra}$", r"$\text{dec}$", r"$\iota$", r"$\psi$", r"$t_c$", r"$\phi_c$", r"$s_{1x}$", r"$s_{1z}$"]
         self.paramgr = ["M_c", "eta", "d_L", "ra", "dec", "iota", "psi", "t_c", "phase_c", 's1_x', 's1_y', 's1_z', 's2_x', 's2_y', 's2_z','gmst', 'epoch']
 
         xvals = [ 3.00000000e+01,  2.46559096e-01,  3.90000000e+02,
@@ -244,6 +249,21 @@ class Fisher(object):
         self.det2 = L1
         self.det3 = V1
 
+
+
+        self.psdid = psdid
+        self.psdO3 = read_mag(self.freqs, "curves/o3_l1.txt")**2
+        self.psdCE = read_mag(self.freqs, "curves/ce1.txt")**2
+
+        def reset_matplotlib():
+            mpl.rcdefaults()
+            default_handler_map = {
+                mpl.lines.Line2D: HandlerLine2D(numpoints=1),
+                mpl.patches.Patch: HandlerPatch()
+            }
+            mpl.legend.Legend.update_default_handler_map(default_handler_map)
+        reset_matplotlib()
+
     def get_h_slow(self, x, det):
         ff = self.freqs
         h_sky = self.waveform(ff, x)
@@ -256,11 +276,8 @@ class Fisher(object):
         y = dict(zip(keys, args)) 
         return self.get_h_slow(y, det)
 
-
     def get_h_gr(self, x):
         return {'H1': self.jitted_h1(x), 'L1': self.jitted_h2(x), 'V1': self.jitted_h3(x)}
-    
-
 
     def get_dh_gr(self, x):
         xvalues = list(x.values())
@@ -270,3 +287,78 @@ class Fisher(object):
             'V1': dict(zip(self.paramdiffgr, self.jitted_dh3(*xvalues)))
         }
         return dh
+
+    def get_snrs_gr(self, x):
+        if self.psdid == "O3":
+            psd = self.psdO3
+        elif self.psdid == "CE":
+            psd = self.psdCE
+        freqs = self.freqs
+
+        h = self.get_h_gr(x)
+        snrs = {d: jnp.real(innprod(h[d], h[d], psd, freqs)**(1/2)) for d in ["H1", "L1", "V1"]}
+        
+        snrs['total'] = (snrs['H1']**2 + snrs['L1']**2 + snrs['V1']**2)**(1/2)
+        self.snr1 = snrs['H1']
+        self.snr2 = snrs['L1']
+        self.snr3 = snrs['V1']
+        self.snrt = snrs['total']
+        return snrs
+
+    def compute_joint_fish(self, x, paramx, k = None):
+        if self.psdid == "O3":
+            psd = self.psdO3
+        elif self.psdid == "CE":
+            psd = self.psdCE
+        dh = self.get_dh_gr(x)
+        idx_par = {paramx[i] : i for i in range(len(paramx))}
+        log_flag =  {paramx[i] : 0 for i in range(len(paramx))}; log_flag["M_c"] = 1; log_flag["d_L"] = 1
+        freqs = self.freqs
+        self.idx_par = idx_par
+        self.log_flag = log_flag
+
+        # saving the value of fend for ppe attachment
+        fend = 0.04257918562317578 
+        Mc = x["M_c"]
+        eta = x["eta"]
+        self.fend = fend/pycbc.conversions.mtotal_from_mchirp_eta(Mc,eta)/Ms
+
+        if k is not None:
+            h = self.get_h_gr(x)
+
+            dpsi_ppe = get_dpsi_ppe(freqs, x, k)
+            for d in ["H1", "L1", "V1"]:
+                dh[d]["phi_k"] = 1j * dpsi_ppe * h[d]
+        
+        self.fi1 = fish(freqs, dh["H1"], x, idx_par, psd, log_flag)
+        self.fi2 = fish(freqs, dh["L1"], x, idx_par, psd, log_flag)
+        self.fi3 = fish(freqs, dh["V1"], x, idx_par, psd, log_flag)
+        self.fi = self.fi1 + self.fi2 + self.fi3
+        return self.fi
+    
+    def compute_biasip(self, x, Dh, paramx, k = None):
+        if self.psdid == "O3":
+            psd = self.psdO3
+        elif self.psdid == "CE":
+            psd = self.psdCE
+        dh = self.get_dh_gr(x)
+        idx_par = {paramx[i] : i for i in range(len(paramx))}
+        log_flag =  {paramx[i] : 0 for i in range(len(paramx))}; log_flag["M_c"] = 1; log_flag["d_L"] = 1
+        freqs = self.freqs
+
+        if k is not None:
+            h = self.get_h_gr(x)
+
+            dpsi_ppe = get_dpsi_ppe(freqs, x, k)
+            for d in ["H1", "L1", "V1"]:
+                dh[d]["phi_k"] = 1j * dpsi_ppe * h[d]
+        
+        self.biasip1 = bias_innerprod(freqs, dh["H1"], x, Dh["H1"], idx_par, psd, log_flag)
+        self.biasip2 = bias_innerprod(freqs, dh["L1"], x, Dh["L1"], idx_par, psd, log_flag)
+        self.biasip3 = bias_innerprod(freqs, dh["V1"], x, Dh["V1"], idx_par, psd, log_flag)
+        # bias = sum(bias_innerprod(freqs, dh[d], x, dh[d], idx_par, psd, log_flag) for d in ["H1", "L1", "V1"])
+        self.biasip = self.biasip1 + self.biasip2 + self.biasip3
+        
+        return self.biasip
+
+
