@@ -216,7 +216,8 @@ def get_dpsi_ppe(freqs, par, k):
 
 class Fisher(object):
     def __init__(self, fmin = 20, fmax = 1000, n_freq = 2000., waveform="IMRPhenomPv2", f_ref=20, fisher_parameters=None, psdid="O3"):
-
+        self.fmin = fmin
+        self.fmax = fmax
         self.freqs = jnp.logspace(jnp.log10(fmin), jnp.log10(fmax), num = int(n_freq))
         if waveform == "IMRPhenomD":
             self.waveform = RippleIMRPhenomD(f_ref=f_ref)
@@ -329,6 +330,9 @@ class Fisher(object):
             dpsi_ppe = get_dpsi_ppe(freqs, x, k)
             for d in ["H1", "L1", "V1"]:
                 dh[d]["phi_k"] = 1j * dpsi_ppe * h[d]
+            # x["phi_k"] = 0
+            # idx_par["phi_k"] = len(paramx)
+            # log_flag["phi_k"] = 0
         
         self.fi1 = fish(freqs, dh["H1"], x, idx_par, psd, log_flag)
         self.fi2 = fish(freqs, dh["L1"], x, idx_par, psd, log_flag)
