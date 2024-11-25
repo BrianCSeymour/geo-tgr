@@ -14,7 +14,7 @@ lines.linewidth: 1
 axes.linewidth:     0.5     # edge line width
 axes.labelsize:     9  # font size of the x and y labels
 axes.labelpad:      2.0 #2.0     # space between label and axis
-#axes.labelweight:   normal  # weight of the x and y labels
+axes.labelweight:   normal  # weight of the x and y labels
 #axes.grid: True
 #axes.grid.axis: y
 
@@ -51,7 +51,7 @@ ytick.right:         True   # draw ticks on the right side
 # ytick.labelright:    False   # draw tick labels on the right side
 # ytick.major.size:    3     # major tick size in points
 # ytick.minor.size:    1.5       # minor tick size in points
-# ytick.major.width:   .3     # major tick width in points
+ytick.major.width:   .3     # major tick width in points
 # ytick.minor.width:   .3     # minor tick width in points
 # ytick.major.pad:     2     # distance to major tick label in points
 # ytick.minor.pad:     2     # distance to the minor tick label in points

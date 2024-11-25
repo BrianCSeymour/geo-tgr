@@ -330,9 +330,6 @@ class Fisher(object):
             dpsi_ppe = get_dpsi_ppe(freqs, x, k)
             for d in ["H1", "L1", "V1"]:
                 dh[d]["phi_k"] = 1j * dpsi_ppe * h[d]
-            # x["phi_k"] = 0
-            # idx_par["phi_k"] = len(paramx)
-            # log_flag["phi_k"] = 0
         
         self.fi1 = fish(freqs, dh["H1"], x, idx_par, psd, log_flag)
         self.fi2 = fish(freqs, dh["L1"], x, idx_par, psd, log_flag)
@@ -357,6 +354,7 @@ class Fisher(object):
             for d in ["H1", "L1", "V1"]:
                 dh[d]["phi_k"] = 1j * dpsi_ppe * h[d]
         
+
         self.biasip1 = bias_innerprod(freqs, dh["H1"], x, Dh["H1"], idx_par, psd, log_flag)
         self.biasip2 = bias_innerprod(freqs, dh["L1"], x, Dh["L1"], idx_par, psd, log_flag)
         self.biasip3 = bias_innerprod(freqs, dh["V1"], x, Dh["V1"], idx_par, psd, log_flag)
