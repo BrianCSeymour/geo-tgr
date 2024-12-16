@@ -3,7 +3,8 @@ channels:
   - defaults
   - conda-forge
 dependencies:
-  - python=3.10
+  - python=3.12
+  - pip
   - numpy
   - pandas
   - scipy
@@ -12,18 +13,18 @@ dependencies:
   - tqdm
   - astropy
   - ipykernel
-  - lal
   - jax
+  - jaxlib
   - qnm
   - spherical
   - quaternionic
   - gwpopulation
   - pathos
-  # - nb_conda_kernels # I dont think needed
-  # - pycbc
-
-# pip install jimGW
-# pip install pycbc
+  - lal
+  - pip:
+    - jimGW
+    - pycbc
+    # - lal
 
 # conda env create -f geotgr.yml
 # conda env update --file geotgr.yml --prune
