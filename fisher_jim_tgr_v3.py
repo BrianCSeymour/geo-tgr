@@ -363,4 +363,43 @@ class Fisher(object):
         
         return self.biasip
 
+    def compute_fisher_raw(self, dh, x, param):
+        if self.psdid == "O3":
+            psd = self.psdO3
+        elif self.psdid == "CE":
+            psd = self.psdCE
+            
+        idx_par = {param[i] : i for i in range(len(param))}
+        log_flag =  {param[i] : 0 for i in range(len(param))}; log_flag["M_c"] = 1; log_flag["d_L"] = 1
+        freqs = self.freqs
+        self.idx_par = idx_par
+        self.log_flag = log_flag
 
+                # saving the value of fend for ppe attachment
+        fend = 0.04257918562317578 
+        Mc = x["M_c"]
+        eta = x["eta"]
+        self.fend = fend/pycbc.conversions.mtotal_from_mchirp_eta(Mc,eta)/Ms
+        
+        fi1 = fish(freqs, dh["H1"], x, idx_par, psd, log_flag)
+        fi2 = fish(freqs, dh["L1"], x, idx_par, psd, log_flag)
+        fi3 = fish(freqs, dh["V1"], x, idx_par, psd, log_flag)
+        fi = fi1 + fi2 + fi3
+        return fi
+    
+    def compute_biasip_raw(self, dh, Dh, x, paramx):
+        if self.psdid == "O3":
+            psd = self.psdO3
+        elif self.psdid == "CE":
+            psd = self.psdCE
+        idx_par = {paramx[i] : i for i in range(len(paramx))}
+        log_flag =  {paramx[i] : 0 for i in range(len(paramx))}; log_flag["M_c"] = 1; log_flag["d_L"] = 1
+        freqs = self.freqs
+
+        biasip1 = bias_innerprod(freqs, dh["H1"], x, Dh["H1"], idx_par, psd, log_flag)
+        biasip2 = bias_innerprod(freqs, dh["L1"], x, Dh["L1"], idx_par, psd, log_flag)
+        biasip3 = bias_innerprod(freqs, dh["V1"], x, Dh["V1"], idx_par, psd, log_flag)
+        # bias = sum(bias_innerprod(freqs, dh[d], x, dh[d], idx_par, psd, log_flag) for d in ["H1", "L1", "V1"])
+        biasip = biasip1 + biasip2 + biasip3
+        
+        return biasip
