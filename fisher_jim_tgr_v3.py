@@ -228,6 +228,8 @@ class Fisher(object):
             self.paramdiffgr = ["M_c", "eta", "d_L", "ra", "dec", "iota", "psi", "t_c", "phase_c", 's1_z', 's1_x']
             self.paramdiffgr_latex = [r"$M_c$", r"$\eta$", r"$d_L$", r"$\text{ra}$", r"$\text{dec}$", r"$\iota$", r"$\psi$", r"$t_c$", r"$\phi_c$", r"$s_{1x}$", r"$s_{1z}$"]
         self.paramgr = ["M_c", "eta", "d_L", "ra", "dec", "iota", "psi", "t_c", "phase_c", 's1_x', 's1_y', 's1_z', 's2_x', 's2_y', 's2_z','gmst', 'epoch']
+        self.k2str = {k: f"phi_{k}" for k in range(-2, 8)}
+        self.str2k = {v: k for k, v in self.k2str.items()}
 
         xvals = [ 3.00000000e+01,  2.46559096e-01,  3.90000000e+02,
         1.69254929e+00,  9.39189162e-01,  2.35481238e+00,
