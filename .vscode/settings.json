@@ -10,13 +10,16 @@
 // }
 
 {
-  "python.defaultInterpreterPath": "${env:CONDA_PREFIX}/bin/python",
-  "python.analysis.extraPaths": ["${env:CONDA_PREFIX}/lib/python3.12/site-packages"],
-  "jupyter.jupyterServerType": "local",
-  "jupyter.defaultKernel": "geotgr",
-  "jupyter.kernels.default": "geotgr",
-  "jupyter.kernels.exclude": [
-    "Python 2",
-    "Python 3"
-  ]
+  "python.defaultInterpreterPath": "${env:CONDA_PREFIX}/envs/geotgr/bin/python",
+  "python.pythonPath": "${env:CONDA_PREFIX}/bin/python"
+  // "python.analysis.extraPaths": ["${env:CONDA_PREFIX}/lib/python3.12/site-packages"],
+  // "python.defaultInterpreterPath": "/home/darkknight/anaconda3/envs/geotgr/bin/python",
+  // "python.analysis.extraPaths": ["/home/darkknight/anaconda3/envs/geotgr/lib/python3.12/site-packages"],
+  // "jupyter.jupyterServerType": "local",
+  // "jupyter.defaultKernel": "geotgr",
+  // "jupyter.kernels.default": "geotgr",
+  // "jupyter.kernels.exclude": [
+  //   "Python 2",
+  //   "Python 3"
+  // ]
 }
