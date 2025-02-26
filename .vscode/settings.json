@@ -10,8 +10,13 @@
 // }
 
 {
-  "python.defaultInterpreterPath": "${env:CONDA_PREFIX}/envs/geotgr/bin/python",
-  "python.pythonPath": "${env:CONDA_PREFIX}/bin/python"
+  // "python.defaultInterpreterPath": "${env:CONDA_PREFIX}/envs/geotgr/bin/python",
+  "jupyter.kernels.excludePythonEnvironments": [
+    "${env:CONDA_PREFIX}/envs/bin/python",
+    "/opt/homebrew/bin/python3.12",
+    "/usr/bin/python3",
+    "/Applications/Julia-1.7.app/Contents/Resources/julia/bin/julia"
+  ]
   // "python.analysis.extraPaths": ["${env:CONDA_PREFIX}/lib/python3.12/site-packages"],
   // "python.defaultInterpreterPath": "/home/darkknight/anaconda3/envs/geotgr/bin/python",
   // "python.analysis.extraPaths": ["/home/darkknight/anaconda3/envs/geotgr/lib/python3.12/site-packages"],
