@@ -11,7 +11,7 @@
 
 {
   // "python.defaultInterpreterPath": "${env:CONDA_PREFIX}/envs/geotgr/bin/python",
-  // "python.defaultInterpreterPath": "/home/darkknight/anaconda3/envs/geotgr/bin/python",
+  "python.defaultInterpreterPath": "/home/darkknight/anaconda3/envs/geotgr/bin/python",
   
   "jupyter.kernels.excludePythonEnvironments": [
     "${env:CONDA_PREFIX}/envs/bin/python",
