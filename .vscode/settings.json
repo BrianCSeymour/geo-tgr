@@ -25,6 +25,8 @@
     "${env:CONDA_PREFIX}/envs/hf_finesse2/bin/python",
     "~/anaconda3/envs/pyseobnr/bin/python",
     "~/anaconda3/envs/qmstruct/bin/python",
+    "~/anaconda3/envs/hf_finesse/bin/python",
+    "~/anaconda3/envs/geotgr/bin/python",
     "~/anaconda3/envs/r-conda/bin/python",
     "~/anaconda3/envs/qmstruct/bin/python",
     "~/anaconda3/envs/toyanalysis/bin/python",
