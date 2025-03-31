@@ -1,6 +1,5 @@
 name: geotgr
 channels:
-  - defaults
   - conda-forge
 dependencies:
   - python=3.12
@@ -21,6 +20,7 @@ dependencies:
   - gwpopulation
   - pathos
   - lal
+  - ipywidgets
   - pip:
     - jimGW
     - pycbc
