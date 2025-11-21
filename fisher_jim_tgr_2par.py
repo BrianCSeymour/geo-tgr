@@ -80,6 +80,7 @@ def fish(freqs, dh, par, idx_par, psd, log_flag):
         dh_arr = dh_arr.at[idx_position, :].set(dh[idx])
 
         # Use jax.lax.cond for conditional multiplication
+        print(idx_par[idx],log_flag[idx])
         dh_arr = dh_arr.at[idx_position, :].set(
             jax.lax.cond(
                 log_flag[idx],
